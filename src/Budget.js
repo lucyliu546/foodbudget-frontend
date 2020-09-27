@@ -30,6 +30,8 @@ import ExpenseTable from './ExpenseTable.js';
 import Select from '@material-ui/core/Select';
 import DatePicker from "react-datepicker";
 
+
+
 class Budgets extends Component {
 
   constructor(props) {
@@ -82,7 +84,11 @@ class Budgets extends Component {
 
 // fetch expense data based on dates
     await fetch((encodeURI('http://localhost:8000/sumexpenses/?format=json&datetype='
-      .concat((this.state.dateFilterType).toString()))), {
+      .concat((this.state.dateFilterType).toString())
+       .concat('&startdate=' + (this.state.startDate).toString())
+      .concat('&enddate='+ (this.state.endDate).toString()) 
+    
+      )), {
         headers: {
           Authorization: `JWT ${localStorage.getItem('token')}`
         }
@@ -95,37 +101,48 @@ class Budgets extends Component {
                 
           for (let key in json) {
             var currDate = moment(key, 'YYYY-MM-DD')
+            console.log(json[key])
             if (currDate.isBetween(this.state.startDate, this.state.endDate, undefined, '[]')) {
               filtered[key] = json[key]
             }
           } 
           json = this.state.dateFilterType === 'Monthly' ? filtered: json
-                
-          var totalBudget = this.state.budgetData.reduce((acc, t) => 
+          console.log(json) 
+          var totalBudget = this.state.dateFilterType === 'Monthly' ? this.state.budgetData.reduce((acc, t) => 
             t.bAmount !== null ? acc + parseFloat(t.bAmount): acc, 0
-          )
+          ) : (this.state.budgetData.reduce((acc, t) => 
+          t.bAmount !== null ? acc + parseFloat(t.bAmount): acc, 0
+        )) * 12
           var totalExpenses = this.state.budgetData.reduce((acc, t) => 
             t.total_expenses !== null ? acc + parseFloat(t.total_expenses): acc, 0
           )
+          var budgetToExpenseData = this.state.budgetData.reduce((totals, t) => {
+            totals[t.bName] = {'total_expenses': t.total_expenses, 'budget': t.bAmount}
+            return totals
+        } , {})
+
+          
           this.setState({ expenseData: json,
-                            totalBudget,
-                            totalExpenses,
-                            currentExpenseTotal: totalExpenses,
-                            currentBudgetTotal: totalBudget,
-                            percentage: Math.ceil(((totalExpenses/totalBudget) * 100)),
-                            budgetToExpenseData: this.state.budgetData.reduce((totals, t) => {
-                                totals[t.bName] = {'total_expenses': t.total_expenses, 'budget': t.bAmount}
-                                return totals
-                            } , {}),
-                            chartData: this.state.chartData ? this.state.chartData : this.state.budgetData.map(budget => (Object.entries(this.state.expenseData).map(t => {
+                            totalBudget, //totalBudget.toLocaleString(undefined, {maximumFractionDigits:2}),
+                            totalExpenses, //totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2}),
+                            currentExpenseTotal: this.state.currentExpenseTotal ? this.state.currentExpenseTotal: totalExpenses,
+                            currentBudgetTotal: this.state.currentBudget === 'Summary' ? totalBudget : budgetToExpenseData[this.state.currentBudget].budget,
+                            percentage: this.state.currentBudget === 'Summary'? Math.ceil(((totalExpenses/totalBudget) * 100)) : (this.state.dateFilterType === 'Monthly' ? Math.ceil(((budgetToExpenseData[this.state.currentBudget].total_expenses / budgetToExpenseData[this.state.currentBudget].budget) * 100))
+                            : Math.ceil((((budgetToExpenseData[this.state.currentBudget].total_expenses) / (budgetToExpenseData[this.state.currentBudget].budget * 12)) * 100))),
+                            budgetToExpenseData,
+                            chartData: this.state.budgetData.map(budget => (Object.entries(this.state.expenseData).map(t => {
 
                               if (t[1][budget.bName]) {
                                  return t[1][budget.bName][0][0]
                              } else {
                                  return 0 
                              } 
-                            })))      
+                            })))
+                            
+                            
                     })
+                      
+                
 			})
 			await fetch((encodeURI('http://localhost:8000/sumexpenses/?format=json&type=all&startdate='
             .concat((this.state.startDate).toString()).concat('&enddate='+ (this.state.endDate).toString())
@@ -182,14 +199,38 @@ class Budgets extends Component {
   }
   
   onTrack = () => {
-    if (moment(this.state.startDate).month() === moment().month()) {
-      const daysPassed = moment().date()
-      const dailyBudget = this.state.currentBudgetTotal/ moment().daysInMonth()
-      const currentDailySpendRate = this.state.currentExpenseTotal / daysPassed
-      const spendingOnTrack = currentDailySpendRate <= dailyBudget ? true : false
-      this.setState({
-        spendingOnTrack
-      }) 
+    if (this.state.dateFilterType === 'Monthly') {
+      if (moment(this.state.startDate).month() === moment().month()) {
+        const daysPassed = moment().date()
+        const dailyBudget = this.state.currentBudgetTotal/ moment().daysInMonth()
+        const currentDailySpendRate = this.state.currentExpenseTotal / daysPassed
+        const spendingOnTrack = currentDailySpendRate <= dailyBudget ? true : false
+        this.setState({
+          spendingOnTrack
+        }) 
+      } else {
+        const spendingOnTrack = this.state.currentBudgetTotal >= this.state.currentExpenseTotal
+        this.setState({
+          spendingOnTrack
+        })
+      }
+    } else {
+      if (moment(this.state.startDate).month() === moment().month) {
+        const currDate = moment()
+        const firstDay = moment().startOf('year')
+        const daysPassed = currDate.diff(firstDay, 'days')
+        const annualBudget = this.state.totalBudget / 365
+        const currentDailySpendRate = this.state.totalExpenses / daysPassed
+        const spendingOnTrack = currentDailySpendRate <= annualBudget ? true : false
+        this.setState({
+          spendingOnTrack
+        })
+      } else {
+        const spendingOnTrack = this.state.currentBudgetTotal >= this.state.currentExpenseTotal
+        this.setState({
+          spendingOnTrack
+        })
+      }
     }
   }
 	
@@ -200,7 +241,8 @@ class Budgets extends Component {
             currentExpenseTotal: budget === 'Summary' ? this.state.totalExpenses: this.state.budgetToExpenseData[budget].total_expenses,
             currentBudgetTotal: budget === 'Summary' ? this.state.totalBudget: this.state.budgetToExpenseData[budget].budget,
             percentage: budget === 'Summary' ? Math.ceil(((this.state.totalExpenses/this.state.totalBudget) * 100)) :
-                Math.ceil(((this.state.budgetToExpenseData[budget].total_expenses / this.state.budgetToExpenseData[budget].budget) * 100)),
+                (this.state.dateFilterType === 'Monthly' ? Math.ceil(((this.state.budgetToExpenseData[budget].total_expenses / this.state.budgetToExpenseData[budget].budget) * 100))
+                  : Math.ceil((((this.state.budgetToExpenseData[budget].total_expenses) / (this.state.budgetToExpenseData[budget].budget * 12)) * 100))),
             chartData: budget ==='Summary'? 
                 this.state.budgetData.map(budget => (Object.entries(this.state.expenseData).map(t => {
                   
@@ -466,13 +508,6 @@ class Budgets extends Component {
 
           </div>
 
-
-          
-          {/* <div style={{flex: '3%',}}>
-            
-            <hr style={{background: '#e8e8e8', height: '100%', width: '4%', paddingTop: '0', marginTop: '0'}}></hr>
-          </div> */}
-
           {/* Main content for graph/table */}
           <div style={{flex: '80%', paddingTop: '0.7%', backgroundColor: '#ededed', opacity: '0.9', minHeight: '100vh'}}>       
                     <Container style={{ display:'inline-block', margin: 'auto auto 1.5% auto'}}>
@@ -609,11 +644,17 @@ class Budgets extends Component {
                         percentage = {this.state.percentage}
                         currentBudgetTotal = {this.state.currentBudgetTotal}
                         currentExpenseTotal = {this.state.currentExpenseTotal}
+                        startDate = {this.state.startDate}
                         />	
 				        </div>
 
 				{/* Add budget popup once button is clicked*/}
-                {this.state.clickAddBudget ? <AddBuget addBudgetClick = {this.addBudgetClick} budgetData={this.state.budgetData} handleAddBudget = {this.handleAddBudget}/>: null}
+                {this.state.clickAddBudget ? 
+                  <AddBuget addBudgetClick = {this.addBudgetClick} 
+                    budgetData={this.state.budgetData} handleAddBudget = {this.handleAddBudget}
+                    />
+                    : 
+                    null}
         
         {/* Delete budget popup once button is clicked */}
 
@@ -621,7 +662,9 @@ class Budgets extends Component {
                           deleteBudgetClick = {this.deleteBudgetClick} budgetToDelete = {this.state.budgetToDelete}
                           fetchData = {this.fetchData}/> : null}
 
-                Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon"> www.flaticon.com</a>
+                <p style={{marginTop: '2%', fontSize: '8px', marginLeft: '4%'}}>
+                  Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon"> www.flaticon.com</a>
+                </p>
         </div></div> 
             
       : <div></div> // return empty div if data has not been loaded 

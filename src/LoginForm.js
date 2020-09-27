@@ -38,22 +38,24 @@ class LoginForm extends React.Component {
           <Modal.Title>Login</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <form onSubmit={e => this.props.handle_login(e, this.state)}>
-            <label htmlFor="username">Username</label>
+          <form onSubmit={e => this.props.handle_login(e, this.state)} style={{display: 'block'}}>
+            <label htmlFor="username" style={{display:'block'}}>Username</label>
             <input
               type="text"
               name="username"
               value={this.state.username}
               onChange={this.handle_change}
+              style={{display:'block'}}
             />
-            <label htmlFor="password">Password</label>
-            <input
+            <label htmlFor="password" style={{display:'block'}}>Password</label>
+            <input 
+              style={{display:'block'}}
               type="password"
               name="password"
               value={this.state.password}
               onChange={this.handle_change}
             />
-            <input type="submit" />
+            <input type="submit" style={{marginTop: '2%'}} />
           </form>
         </Modal.Body>
       </Modal>

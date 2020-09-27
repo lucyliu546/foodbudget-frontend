@@ -67,7 +67,7 @@ class AddBudget extends React.Component {
                     <Form.Label>Budget Type</Form.Label>
                     <Form.Control as="select" 
                         name='budgetName' value={this.state.budgetName} onChange={this.handle_change}
-                        defaultValue={this.state.budgetName}>
+                        defaultValue={this.state.budgetName} defaultValue={this.props.currentBudget}>
                             
                             {this.state.options.map(i => (
                                 <option>{i}</option>

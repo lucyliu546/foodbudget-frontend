@@ -3,7 +3,7 @@ import {Component } from 'react';
 import {Link} from "react-router-dom";
 
 import Table from 'react-bootstrap/Table'
-
+import "react-datepicker/dist/react-datepicker.css";
 import AddExpense from './popups/AddExpense.js'
 import AddExpenseBulk from './AddExpenseBulk.js'
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
@@ -16,16 +16,23 @@ import './index.css';
 import InputGroup from 'react-bootstrap/InputGroup'
 import Form from 'react-bootstrap/Form'
 import moment from 'moment';
-
+import Modal from 'react-bootstrap/Modal'
 import DatePicker from "react-datepicker";
 
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
+import Overlay from 'react-bootstrap/Overlay'
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger'
+import Popover from 'react-bootstrap/Popover'
+import PopoverContent from 'react-bootstrap/PopoverContent'
+
+import ClickAwayListener from '@material-ui/core/ClickAwayListener';
 
 class ExpenseTable extends Component {
     constructor(props) {
         super(props)
+        
         this.state = {
             showExpensePopup: false,
             editExpenseID: '',
@@ -34,6 +41,8 @@ class ExpenseTable extends Component {
             tempBudget: '',
             tempDate: '',
             options: [],
+            editBudget: false,
+            currentAnnualBudgetTotal: (this.props.currentBudgetTotal * 12).toLocaleString()
             
             
             
@@ -42,7 +51,7 @@ class ExpenseTable extends Component {
 
     componentDidMount() {
         var options = {}
-        
+        document.addEventListener('mousedown', this.handleClickOutside);
         this.props.budgetData.forEach((budget, i ) => {
             options[budget.bName] = budget.bID
            
@@ -57,6 +66,19 @@ class ExpenseTable extends Component {
       })
     }
 
+    componentWillUnmount() {
+      document.removeEventListener('mousedown', this.handleClickOutside);
+  }
+
+
+    handleClickAway = () => {
+      this.setState({
+        editBudget: false,
+        editExpenseID: '',
+        showEditExpensePopup: false
+      })
+    }
+
     setDefaultState = () => {
         this.setState({
             
@@ -66,12 +88,15 @@ class ExpenseTable extends Component {
             tempAmount: '',
             tempBudget: '',
             tempDate: '',
-            options: []
+            tempBudgetAmount: '',
+            showEditExpensePopup: false,
+           
         
         })
     }
 
     addExpenseClick = (e) => {
+        
         const name = e.target? e.target.name: e
         this.setState(prevState => ({[name]: !prevState.showExpensePopup}))
     }
@@ -118,37 +143,79 @@ class ExpenseTable extends Component {
         
     }
 
-    deleteExpenseClick = async(eID, e) => {
+    saveBudgetClick = async(e) => {
+      if (e.charCode === 13) {  //check if enter key is pressed
+        this.handleChange('editBudget', e)
+        const self = this;
+        const bID = this.state.options[this.props.currentBudget]
+        const data = {
+                bName : this.props.currentBudget,
+                bAmount : this.state.tempBudgetAmount,
+                bID,
+                bUser: this.props.userID}
+        console.log(data)
         const config = {
             headers: {
-                Authorization: `JWT ${localStorage.getItem('token')}`
-                
+                Authorization: `JWT ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
                 } 
         }
-        await axios.delete((encodeURI("http://localhost:8000/expenses/"
-		.concat((eID).toString() + '/')
-			)), config)
-        .catch((error) => {
-            console.log(error)
-        })
+        await axios.put((encodeURI("http://localhost:8000/budgets/"
+        .concat((bID).toString() + '/')
+          )), 
+                JSON.stringify(data),
+                config
+                
+            )
+            .catch((error) => {
+                console.log(error)
+            });
 
-        this.props.fetchData()
-    }
-    
 
-    /* handles value changes in row being edited */
+            this.setDefaultState()
+            this.props.fetchData() 
+          }
+      }
+
+    deleteExpenseClick = async(eID, e) => {
+            const config = {
+                headers: {
+                    Authorization: `JWT ${localStorage.getItem('token')}`
+                    
+                    } 
+            }
+            await axios.delete((encodeURI("http://localhost:8000/expenses/"
+        .concat((eID).toString() + '/')
+          )), config)
+            .catch((error) => {
+                console.log(error)
+            })
+
+            this.props.fetchData()
+        }
+        
+
+        /* handles value changes in row being edited */
     handleChange = (k, e) => {
-        const {name , value} = e.target? e.target: {name: "tempDate", value: moment(e).format("YYYY-MM-DD")}
-        this.setState({
-            [name] : value
-        })
-        
-        /* let expenses = this.props.individualexpenseData
-        
-        expenses[this.state.tempBudget][0][k][name] = value 
-        console.log(expenses[this.state.tempBudget][0][k]) */
-        
+            console.log(k, e)
+            if (e.target) {
+              var {name, value} = k === 'editBudget' ? {name: k, value: ! this.state.editBudget} : e.target
+            } else {
+              var {name , value} = {name: "tempDate", value: moment(e).format("YYYY-MM-DD")}
+              this.handleToggle()
+            }
+            
+            
+            this.setState({
+                [name] : value
+            })
     }
+
+    handleToggle = () => {
+      this.setState(prevState => ({showEditExpensePopup: !prevState.showEditExpensePopup}))
+    }
+
+    
 
     render(){
 
@@ -157,32 +224,69 @@ class ExpenseTable extends Component {
                 <img style={{marginLeft: '1%', height: '1em'}} src={require('./images/plus.png')}/>
             </Button>
         
-        const bulkAddExpenseButton = <Button variant="secondary" name='showBulkPopup' size="md" onClick={this.addExpenseClick}>
+        const bulkAddExpenseButton = <Button variant="secondary" style={{marginTop: '1%'}} name='showBulkPopup' size="md" onClick={this.addExpenseClick}>
         Bulk Upload with CSV 
         </Button>
+
+        const expenseDateEditPopover = 
+            
+            <Popover id="popover-basic">
+            
+            <Popover.Content>
+              <DatePicker
+                      value={moment(this.state.tempDate).format("YYYY-MM-DD")}
+                      name = 'tempDate'
+                      
+                      onChange = {(e) => this.handleChange(this.state.editExpenseID, e[0])}
+                      aria-label="eDate"
+                      aria-describedby="basic-addon1"
+                      selectsRange
+                      inline
+                      popperModifiers={{
+                      flip: {
+                          behavior: ["bottom"] // don't allow it to flip to be above
+                      },
+                      preventOverflow: {
+                          enabled: false // tell it not to try to stay within the view (this prevents the popper from covering the element you clicked)
+                      },
+                      hide: {
+                          enabled: false // turn off since needs preventOverflow to be enabled
+                      }
+                      }}
+                      />
+            </Popover.Content>
+          </Popover>
+            
 
         const summaryPage = this.props.individualexpenseData ? Object.entries(this.props.individualexpenseData).map(budget => (
             budget[1].map(expenses => (
                 Object.entries(expenses).map( ([k, expense]) => (
                 
                 expense.eID === this.state.editExpenseID ? 
-                <tr>
-                    <td>
-                        <InputGroup className="mb-3">
-                            <DatePicker
-                            value={this.state.tempDate}
-                            name='tempDate'
-                            onChange={(e) => this.handleChange(k, e)}
-                            aria-label="eDate"
-                            aria-describedby="basic-addon1"
-                            />
-                        </InputGroup>
-                        
-                    </td>
+                <tr style={{maxHeight: '48px', height: '45px'}}>
+                    <td style={{marginLeft: '5%'}}>
+                            <OverlayTrigger
+                              placement="bottom"
+                              delay={{ show: 250, hide: 400 }}
+                              overlay={expenseDateEditPopover}
+                              show = {this.state.showEditExpensePopup}
+                            >
+                              <InputGroup className="mb-3">
+                                  <Form.Control
+                                      value= {this.state.tempDate}
+                                      name='tempName'
+                                      onClick={(e) => this.handleToggle()}
+                                      aria-label="budget"
+                                      aria-describedby="basic-addon1"
+                                  /> 
+                              </InputGroup>
+                            </OverlayTrigger> 
+                          </td>
 
                     <td>
                         <InputGroup className="mb-3">
                             <Form.Control
+                            
                             value= {this.state.tempName}
                             name='tempName'
                             onChange={(e) => this.handleChange(k, e)}
@@ -197,6 +301,7 @@ class ExpenseTable extends Component {
                     <td>
                         <InputGroup className="mb-3">
                             <Form.Control
+                            
                             value= {this.state.tempAmount}
                             name='tempAmount'
                             onChange={(e) => this.handleChange(k, e)}
@@ -238,13 +343,13 @@ class ExpenseTable extends Component {
                         </td>
                 </tr>
                 :
-                <tr>
-                    <td>{expense.eDate}</td>
-                    <td>{expense.eName}</td>
-                    <td>${expense.eAmount}</td>
+                <tr style={{maxHeight: '48px', height: '45px'}}>
+                    <td style={{maxHeight: '48px', height: '45px'}}>{expense.eDate}</td>
+                    <td style={{maxHeight: '48px', height: '45px'}}>{expense.eName}</td>
+                    <td style={{maxHeight: '48px', height: '45px'}}>${expense.eAmount}</td>
                     
                     {this.props.currentBudget === 'Summary' ? <td>{budget[0]}</td> : null }
-                    <td>
+                    <td style={{maxHeight: '48px', height: '45px'}}>
                             <Button variant="light" style={{marginLeft: '2%', marginRight: '2%'}}
                                 onClick = {() => this.editExpenseClick(expense.eID, k, budget[0])}>
                             <img style={{height: '1em'}} src={require('./images/pencil.png')}/>
@@ -267,63 +372,72 @@ class ExpenseTable extends Component {
                         expense.eID === this.state.editExpenseID ? 
                     
                     // shows an inline form if a user wants to edit an expense
-                    <tr>
-                        <td>
-                            <InputGroup className="mb-3">
-                                <DatePicker
-                                value={moment(this.state.tempDate).format("YYYY-MM-DD")}
-                                name = 'tempDate'
-                                onChange = {(e) => this.handleChange(k, e)}
-                                aria-label="eDate"
-                                aria-describedby="basic-addon1"
-                                />
-                            </InputGroup>
-                            
-                        </td>
+                    <ClickAwayListener onClickAway={this.handleClickAway}>
+                      <tr>
+                          <td style={{marginLeft: '5%'}}>
+                            <OverlayTrigger
+                              placement="bottom"
+                              delay={{ show: 250, hide: 400 }}
+                              overlay={expenseDateEditPopover}
+                              show = {this.state.showEditExpensePopup}
+                            >
+                              <InputGroup className="mb-3">
+                                  <Form.Control
+                                      value= {this.state.tempDate}
+                                      name='tempName'
+                                      onClick={(e) => this.handleToggle()}
+                                      aria-label="budget"
+                                      aria-describedby="basic-addon1"
+                                  /> 
+                              </InputGroup>
+                            </OverlayTrigger> 
+                          </td>
 
-                        <td>
-                            <InputGroup className="mb-3">
-                                <Form.Control
-                                value= {this.state.tempName}
-                                name='tempName'
-                                onChange={(e) => this.handleChange(k, e)}
-                                aria-label="budget"
-                                aria-describedby="basic-addon1"
-                                /> 
+                          <td>
+                              <InputGroup className="mb-3">
+                                  <Form.Control
+                                  value= {this.state.tempName}
+                                  name='tempName'
+                                  onChange={(e) => this.handleChange(k, e)}
+                                  aria-label="budget"
+                                  aria-describedby="basic-addon1"
+                                  /> 
+                                  
+                              </InputGroup> 
+                          
+                          </td>
+
+                          <td>
+                              <InputGroup className="mb-3">
+                                  <Form.Control
+                                  value= {this.state.tempAmount}
+                                  name='tempAmount'
+                                  onChange = {(e) => this.handleChange(k, e)}
+                                  aria-label="eAmount"
+                                  aria-describedby="basic-addon1"
+                                  />
+                              </InputGroup>   
+                            
+                          </td>
+                          
+                          <td style={{display: 'inline-block'}}>
+                                  <Button variant="light" style={{marginLeft: '2%', marginRight: '2%'}}
+                                      onClick = {() => this.saveExpenseClick(expense.eID)}>
+                                  <img style={{height: '1em'}} src={require('./images/save.png')}/>
+                                  </Button>
+
                                 
-                            </InputGroup> 
-                        
-                        </td>
-
-                        <td>
-                            <InputGroup className="mb-3">
-                                <Form.Control
-                                value= {this.state.tempAmount}
-                                name='tempAmount'
-                                onChange = {(e) => this.handleChange(k, e)}
-                                aria-label="eAmount"
-                                aria-describedby="basic-addon1"
-                                />
-                            </InputGroup>   
-                           
-                        </td>
-                        
-                        <td style={{display: 'inline-block'}}>
-                                <Button variant="light" style={{marginLeft: '2%', marginRight: '2%'}}
-                                    onClick = {() => this.saveExpenseClick(expense.eID)}>
-                                <img style={{height: '1em'}} src={require('./images/save.png')}/>
-                                </Button>
-
-                               
-                            </td>
-                    </tr>
+                              </td>
+                      </tr>
+                      </ClickAwayListener>
                     :
-                        <tr>
-                            <td>{expense.eDate}</td>
-                            <td>{expense.eName} </td>
-                            <td>${expense.eAmount} </td>
+                        <tr style={{maxHeight: '48px', height: '45px'}}>
+                            <td style={{maxHeight: '48px', height: '45px'}}>{expense.eDate}</td>
+                            <td style={{maxHeight: '48px', height: '45px'}}>{expense.eName} </td>
+                            <td style={{maxHeight: '48px', height: '45px'}}>${expense.eAmount} </td>
                             
-                            <td>
+                            <td style={{maxHeight: '48px', height: '45px', maxWidth: '100px', width: '100px', minWidth: '100px',  }}>
+                              <div style={{maxWidth: '100px', width: '100px', minWidth: '100px', display: 'flex', justifyContent: 'center'}}>
                                 <Button variant="light" style={{marginLeft: '2%', marginRight: '2%'}}
                                     onClick = {() => this.editExpenseClick(expense.eID, k)}>
                                 <img style={{height: '1em'}} src={require('./images/pencil.png')}/>
@@ -335,6 +449,7 @@ class ExpenseTable extends Component {
                                     onClick = {() => this.deleteExpenseClick(expense.eID)}>
                                 <img style={{marginLeft: '1%', marginRight: '2%', height: '1em'}} src={require('./images/cross.png')}/>
                                 </Button>
+                                </div>
                             </td>
                         </tr>
                     )))) : <h2>No expenses to show</h2>
@@ -382,7 +497,42 @@ class ExpenseTable extends Component {
                                         color: 'white', paddingRight: '5%' }}> 
                                 <Card.Title style={{fontSize: '1.25vw' ,width:'min-content', height: 'min-content'}}>{this.props.dateFilterType === 'Monthly' ? 'Monthly' : 'Annual'} Budget</Card.Title>
                             </Col>
-                            <Col className='card-col-2'><Card.Text style={{fontSize: '1.65vw' ,width:'min-content', }}>${this.props.currentBudgetTotal}</Card.Text></Col>
+                            {!this.state.editBudget  ? 
+                              <Col className='card-col-2' style={{height: '100%', display: 'flex', alignContent: 'center'}} 
+                              id= {this.props.currentBudget !== 'Summary' && this.props.dateFilterType === 'Monthly' ? 'editBudget' : ''} name='editBudget' 
+                              onClick={(this.props.currentBudget !=='Summary' && this.props.dateFilterType === 'Monthly') && (e => this.handleChange('editBudget', e))}>
+                                          
+                                            <Card.Text 
+                                              style={{padding: '0', margin: '0'}}
+                                              className='editNumber'>${this.props.dateFilterType === 'Monthly' ? this.props.currentBudgetTotal.toLocaleString() : (this.props.currentBudget === 'Summary' ? 
+                                                this.props.currentBudgetTotal.toLocaleString() : (this.props.currentBudgetTotal * 12).toLocaleString())}
+                                            </Card.Text>
+                                          
+
+                                          <div className='editImg'>
+                                            <img style={{ height: '3em'}} src={require('./images/edit.png')}/>
+                                          </div>
+                                         
+                              </Col>
+                              : 
+                              <ClickAwayListener onClickAway={this.handleClickAway}>
+                                <Col className='card-col-2' style={{height: '100%', width: '90%', display: 'flex', justifyContent: 'center', alignItems: 'center'}}  name='editBudget' >
+                                  <InputGroup className="mb-3" style={{maxWidth: '90%'}}>
+                                    <Form.Control
+                                    value= {this.state.tempBudgetAmount}
+                                    name='tempBudgetAmount'
+                                    onChange = {(e) => this.handleChange(true, e)}
+                                    aria-label="bAmount"
+                                    aria-describedby="basic-addon1"
+                                    onKeyPress = {this.saveBudgetClick}
+                                    style={{}}
+                                    
+                                    />
+                                  </InputGroup>
+                                  
+                                </Col>
+                                </ClickAwayListener>  
+                            }
                           </Row>
                           </Container>
                           </Card.Body>
@@ -396,8 +546,8 @@ class ExpenseTable extends Component {
                                         color: 'white', paddingRight: '5%' }}>
                               <Card.Title style={{fontSize: '1.25vw' ,width:'min-content', height: 'min-content'}}>Total Spending</Card.Title>
                             </Col>
-                            <Col className='card-col-2'>
-                              <Card.Text style={{fontSize: '1.65vw' ,width:'min-content', }}>${this.props.currentExpenseTotal}</Card.Text>
+                            <Col className='card-col-2' style={{height: '100%'}}>
+                              <Card.Text style={{fontSize: '3vmin' ,width:'min-content',  maxWidth: '100%'}}>${this.props.currentExpenseTotal.toLocaleString(undefined, {maximumFractionDigits:2})}</Card.Text>
                             </Col>
                           </Row>
                           </Container>
@@ -411,7 +561,7 @@ class ExpenseTable extends Component {
                           <Row className='card-row'>
                             <Col style={{justifyContent:'center', display: 'flex', padding: '0', minHeight: '74px', alignItems: 'center', backgroundColor: this.props.currentBudget === 'Summary' ? 'gray' : `${this.props.colorScheme[this.props.currentBudget]}`, minHeight: '100%',
                                         color: 'white', paddingRight: '5%'}}>
-                              <Card.Title style={{fontSize: '1.25vw' ,width:'min-content', height: 'min-content'}}>On Track?</Card.Title>
+                              <Card.Title style={{fontSize: '1.25vw' ,width:'min-content', height: 'min-content'}}>{(this.props.dateFilterType === 'Monthly' && moment(this.props.startDate).month() === moment().month()) || (this.props.dateFilterType === 'Annually' && moment(this.props.startDate).year() === moment().year())  ? 'On Track' : 'Met Budget'}?</Card.Title>
                             </Col>
                             <Col className='card-col-2'>
                               <div style={{display:'inline-block', marginLeft: '5%',}}>
@@ -428,39 +578,46 @@ class ExpenseTable extends Component {
                       </CardDeck>
                 </div>     
                     
-                  <div style={{backgroundColor: 'white', padding: '0.1% 0.2% 0% 0.2%'}}>
-                    <Table striped bordered hover size="sm" style={{maxWidth: '100%'}} > 
-                        <thead>
-                            <tr>
-                            <th>Date</th>
-                            <th>Name</th>
-                            <th>Amount</th>
-                            
-                            {this.props.currentBudget === 'Summary' ? <th>Budget</th> : null} 
-                            <th></th>
-                            </tr>
-                        </thead>
-                    <tbody>
-
-                    {this.props.currentBudget !== 'Summary' ? individualPage : summaryPage} 
-
-                    </tbody> 
+                  <div style={{backgroundColor: 'white', padding: '0.1% 0.2% 0% 0.2%',  maxWidth: '96%', marginLeft: 'auto', marginRight: 'auto'}}>
                     
-                    {/* Add expenses buttons */}
+                    <div style={{maxHeight: '600px', overflowY: 'scroll', position: 'relative'}}>
+                      <Table striped bordered hover size="sm" style={{ fontSize: '2vmin', overflow: 'visible'}} > 
 
-                    </Table>
+                          <thead>
+                              <tr>
+                              <th >Date</th>
+                              <th>Name</th>
+                              <th>Amount</th>
+                              
+                              {this.props.currentBudget === 'Summary' ? <th>Budget</th> : null} 
+                              <th style={{maxWidth: '105px', width: '105px', minWidth: '105px'}}></th>
+                              </tr>
+                          </thead>
+                      <tbody>
+
+                      {this.props.currentBudget !== 'Summary' ? individualPage : summaryPage} 
+
+                      </tbody> 
+                      
+                      {/* Add expenses buttons */}
+
+                      </Table>
+                    </div>
+                    {addExpenseButton }
+                    <Link to='/bulkaddexpenses'> 
+                        {bulkAddExpenseButton}
+                    </Link>
                   </div>
-                    {addExpenseButton}
+                  
                     {this.state.showExpensePopup ? 
                         <AddExpense 
                             budgetData = {this.props.budgetData}
+                            currentBudget={this.props.currentBudget}
                             addExpenseClick = {this.addExpenseClick} 
                             userID = {this.props.userID}
                             fetchData = {this.props.fetchData}/> :null }
 
-                     <Link to='/bulkaddexpenses'> 
-                        {bulkAddExpenseButton}
-                    </Link>
+                    
                     {/* {this.state.showBulkPopup ? 
                         < AddExpenseBulk
                             addExpenseClick = {this.addExpenseClick} 

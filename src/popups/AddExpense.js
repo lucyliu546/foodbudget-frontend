@@ -36,7 +36,8 @@ class AddExpense extends React.Component {
 
       this.setState({
           options: options,
-          budgetName: Object.keys(options)[0]
+          budgetName: this.props.currentBudget !== 'Summary' ? this.props.currentBudget : (Object.keys(options))[0]
+          
       })
     
   }
@@ -51,7 +52,8 @@ class AddExpense extends React.Component {
     });
   };
 
-  handleAddExpense = async() => {
+  handleAddExpense = async(e) => {
+    e.preventDefault()
     const date = moment(this.state.date).format("YYYY-MM-DD")
     const data = {eAmount: this.state.amount, eDate: date, bID: this.state.options[this.state.budgetName], eUser: this.props.userID, eName: this.state.expenseName}
     console.log(data)
@@ -117,10 +119,10 @@ class AddExpense extends React.Component {
                     <Form.Label>Date</Form.Label>
                     <DatePicker name='date' value = {this.state.date} selected={this.state.date} onSelect={this.handle_change} />
                 </Form.Group>
-                <Button variant="primary" type="submit" onClick={() => {
+                <Button variant="primary"  name="showExpensePopup" onClick={(e) => {
                     
-                    this.handleAddExpense()
-                    this.props.addExpenseClick()
+                    this.handleAddExpense(e)
+                    this.props.addExpenseClick(e)
                 }}>
 
                     Submit

@@ -23,16 +23,23 @@ function FoodNav(props) {
     <Navbar.Brand href="/">FoodBudget</Navbar.Brand>
     
     <Navbar.Collapse id="basic-navbar-nav">
-      <Nav>
-        <Nav.Link href="/budgets">Budgets</Nav.Link>
-        <Nav.Link href="#link">Food Expenses</Nav.Link>
+    <Form inline style={{overflow:'hidden'}}>
+       
+          <Button onClick={(e) => {
+            navClick(e, '')}} variant="info"
+            > <Link to='./' style={{color: 'white'}}>Logout</Link>
+            </Button>
+        </Form>
+      
+
+      <Nav  className='ml-auto'>
+        <img style={{height: '2em', width: '2em'}} src={require('./images/user.png')}/>
+        <Nav.Item style={{padding: '5% 5% 0 10%'}}>{props.username}</Nav.Item>
+        
+      
+      
       </Nav>
-      <Form inline>
-        <Button onClick={(e) => {
-          navClick(e, '')}} variant="info"
-          > <Link to='./'>Logout</Link>
-          </Button>
-      </Form>
+      
       </Navbar.Collapse>
   </Navbar>)
 
@@ -42,12 +49,12 @@ function FoodNav(props) {
     
     <Navbar.Collapse id="basic-navbar-nav">
       
-      <Form inline>
-        <Button onClick={(e) => {
+      
+        <Button style={{marginRight: '1%'}}onClick={(e) => {
           navClick(e, 'login')}} variant="info">Login</Button>
         <Button onClick={(e) => {
           navClick(e, 'signup')}} variant="info">Signup</Button>
-      </Form>
+      
     </Navbar.Collapse>
   </Navbar>)
 

@@ -11,7 +11,7 @@ import Table from 'react-bootstrap/Table'
 
 import moment from 'moment';
 import DatePicker from "react-datepicker";
- 
+
 import "react-datepicker/dist/react-datepicker.css";
 import Papa from 'papaparse';
 
@@ -54,12 +54,28 @@ class AddExpenseBulk extends React.Component {
   }
   
 
-  handleChange = (i, e) => {
+  handleChange = async(i, e) => {
     var prev = this.state.results
-    prev[i][this.state.numCols] = (e.target.value)
+    var budgetName = e.target.value
+    var expenseName = prev[i][this.state.nameCol]
+    prev[i][this.state.numCols] = budgetName
+    prev = await this.updateAllRows(expenseName, budgetName, prev)
+    
     this.setState({
-        results:  prev
+      results:  prev
+  })
+    
+  }
+
+  updateAllRows = (expenseName, budgetName, prev) => {
+    prev.forEach((expense, id) => {
+      if (expense[this.state.nameCol] === expenseName) {
+        prev[id][this.state.numCols] = budgetName
+        console.log('here', prev[id][this.state.numCols], id, expense)
+      }
     })
+    console.log(prev)
+    return prev
   }
 
   onFileChange = event => {
@@ -68,12 +84,18 @@ class AddExpenseBulk extends React.Component {
     })
   }
 
+  onHeadersCheck = event => {
+    this.setState({
+      headerCheck: event.target.checked
+    })
+  }
+
   onFileUpload = () => {
     // Update the formData object 
     Papa.parse(this.state.selectedFile,  {
       complete: (results) => {
         this.setState({
-          results: results.data,
+          results: this.state.headerCheck ? results.data.slice(1) : results.data,
           numCols: results.data[0].length,
         }, this.dataCategorizer)
       }, 
@@ -82,6 +104,7 @@ class AddExpenseBulk extends React.Component {
     
   }
 
+  // categorizes data columns based on Regex
   dataCategorizer = () => {
     var dateCol = ''
     var amountCol = ''
@@ -119,11 +142,12 @@ class AddExpenseBulk extends React.Component {
     var toUploadData = []
     var errors = []
     for (const [i, newExpense] of this.state.results.entries()) {
+      
       if (newExpense[this.state.numCols]=== '') {
         errors.push(i)
       }
       toUploadData.push({
-        'eAmount': (newExpense[this.state.amountCol]).toString(),
+        'eAmount': (Math.abs(newExpense[this.state.amountCol])).toString(),
         'eDate': moment(newExpense[this.state.dateCol], 'MM-DD-YYYY').format('YYYY-MM-DD'),
         'bID' : this.state.options[newExpense[this.state.numCols]],
         'eUser': this.props.userID,
@@ -153,30 +177,50 @@ class AddExpenseBulk extends React.Component {
         postOk: response
         })}
       )
+      .then(this.props.history.push('/'))
       .catch((error) => {
           console.log(error)
       })
     }
      
-
     
+    
+  }
+
+  deleteExpenseClick = async(i, e) => {
+    const results = this.state.results
+    results.splice(i, 1)
+    this.setState({
+      results
+    })
   }
 
 
   render() {
     return (
-      <div>
+      <div style={{display: 'flex', justifyContent: 'center'}}>
         
-        <div style={{marginLeft: 'auto', marginRight: 'auto'}}>
+        {!this.state.results &&
+        <div style={{marginTop: '5%', display: 'flex-box',justifyContent: 'center'}}>
           <h2>Upload a csv file of expenses ...</h2>
-
-          <input type="file" onChange={this.onFileChange}/>
-          <Button variant="primary" name='showExpensePopup' size="lg" onClick={this.onFileUpload} >
-                    Upload
-          </Button>
+          <p>Please only upload the following columns: Name, Amount, and Date</p>
+          <div style={{display: 'flex-box', justifyContent: 'flex-start', width: '75%', marginLeft: 'auto', marginRight: 'auto'}}>
+            <input style={{ display: 'block'}} type="file" onChange={this.onFileChange}/>
+            <Form.Check
+              type="checkbox"
+              className="mb-2 mr-sm-2"
+              id="inlineFormCheck"
+              label="File Includes Headers"
+              onChange={this.onHeadersCheck}
+            />
+            <Button style={{width: '50%', marginTop: '2%'}} block variant="info" name='showExpensePopup'  onClick={this.onFileUpload} >
+                      Upload
+            </Button>
+          </div>
         </div>
+        }
 
-
+        {this.state.results &&
         <div style = {{maxWidth: '85%', marginLeft: 'auto', marginRight: 'auto', marginTop: '3%'}}>
         <Table striped bordered hover size="sm"  > 
                         <thead>
@@ -185,7 +229,7 @@ class AddExpenseBulk extends React.Component {
                             <th>Name</th>
                             <th>Amount</th>
                             <th>Budget</th>
-                            
+                            <th></th>
                             
                             </tr>
                         </thead>
@@ -195,17 +239,17 @@ class AddExpenseBulk extends React.Component {
            
 
               
-                <tr>
+                <tr >
                     <td>{expense[this.state.dateCol]}</td>
                     <td>{expense[this.state.nameCol]}</td>
-                    <td>${expense[this.state.amountCol]}</td>
+                    <td>${Math.abs(expense[this.state.amountCol])}</td>
                     
                     
                     <td>
                       <InputGroup className="mb-3">
                               <Form.Control as="select"
-                              
-                              
+                              required
+                              value={this.state.results[i][this.state.numCols]}
                               name='tempBudget'
                               onChange={(e) => this.handleChange(i, e)}
                               aria-label="budget"
@@ -219,7 +263,17 @@ class AddExpenseBulk extends React.Component {
                                       </option>
                                   ))} 
                               </Form.Control>
+                              <Form.Control.Feedback type="invalid">
+                                Please choose a budget
+                              </Form.Control.Feedback>
                       </InputGroup>   
+                    </td>
+                    <td style={{marginTop: 'auto', marginBottom: 'auto'}}>
+                      <Button 
+                                    variant="light" style={{marginLeft: '2%', marginRight: '2%'}}
+                                    onClick = {() => this.deleteExpenseClick(i)}>
+                                <img style={{marginLeft: '1%', marginRight: '2%', height: '1em'}} src={require('./images/cross.png')}/>
+                                </Button>
                     </td>
                 </tr>
             ))
@@ -235,6 +289,7 @@ class AddExpenseBulk extends React.Component {
                     Submit!
         </Button>        
         </div>
+      }
       </div>
     );
   }

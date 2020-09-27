@@ -19,16 +19,17 @@ class App extends Component {
 		super()
 		this.state = {
 			displayed_form: '',
-			logged_in: localStorage.getItem('token') !== null ? true : false,
+			logged_in: '',
+			token: localStorage.getItem('token'),
 			username: '',
 			userID: '',
 			show: false,
 			colorScheme: {'Bars': '#70c1b3',
-						'Restaurants': '#c08497',
-						'Grocery': '#ff70a6',
-						'Dessert': '#FCAA67',
-						'Fast Food': '#668586',
-						'Coffee': '#a7bed3' 
+						'Restaurants': '#A99FD1',
+						'Grocery': '#ef959d',
+						'Dessert': '#D5A220',
+						'Fast Food': '#1e555c',
+						'Coffee': '#80a1d4' 
 					},
 			icons: {
 				'Bars': './images/cocktail.png',
@@ -38,18 +39,18 @@ class App extends Component {
 				'Fast Food': './images/fast-food.png',
 				'Coffee': './images/coffee-bean.png'
 				},
-			budgets: ''
+			
 
 			}
 		
 		  };
 	
 
-	componentDidMount() {
+	async componentDidMount() {
 		
-		if (this.state.logged_in) {
+		if (this.state.token) {
 			try{
-				fetch('http://localhost:8000/current_user/', {
+				await fetch('http://localhost:8000/current_user/', {
 				headers: {
 					Authorization: `JWT ${localStorage.getItem('token')}`
 				}
@@ -58,8 +59,11 @@ class App extends Component {
 				.then(json => {
 					this.setState({ username: json.username, 
 									userID: json.id,
-									logged_in: json.username !== 'undefined' ? true : false });
-				});
+									token: localStorage.getItem('token'),
+									logged_in: json.username === undefined ? false : true })
+					
+				})
+				
 				} catch(error) {
 					console.log(error)
 					console.log(this.state)
@@ -83,14 +87,15 @@ class App extends Component {
 				logged_in: json.user.username !== 'undefined' ? true: false,
 				displayed_form: '',
 				username: json.user.username,
-				redirect: true
+				redirect: true,
+				
 			  })
 			})
 	}
 
-	handle_signup = (event, data) => {
+	handle_signup = async(event, data) => {
 		event.preventDefault();
-		fetch('http://localhost:8000/users/', {
+		await fetch('http://localhost:8000/users/', {
 		  method: 'POST',
 		  headers: {
 			'Content-Type': 'application/json'
@@ -103,10 +108,31 @@ class App extends Component {
 			this.setState({
 			  logged_in: true,
 			  displayed_form: '',
-			  username: json.username
-			});
-		  });
-	  };
+			  username: json.username,
+			  token: json.token,
+			
+			})
+		  })
+		
+		  try{
+			await fetch('http://localhost:8000/current_user/', {
+			headers: {
+				Authorization: `JWT ${localStorage.getItem('token')}`
+			}
+			})
+			.then(res => res.json())
+			.then(json => {
+				this.setState({ 
+								userID: json.id,
+				})
+				
+			})
+			
+			} catch(error) {
+				console.log(error)
+				console.log(this.state)
+			}
+	  }
 
 
 	display_form = form => {
@@ -155,17 +181,29 @@ class App extends Component {
 						display_form={this.display_form}
 						handle_logout={this.handle_logout}
 						handle_toggle={this.handle_toggle}
+						username = {this.state.username}
 					/>
 
 				{this.state.show ? form : null}
 
 				<Switch>
-					<Route path="/" render={(props) => <Home {...props} 
+					<Route path="/" render={(props) => (
+						this.state.logged_in ? <Budgets {...props} 
+						colorScheme = {this.state.colorScheme}
+						icons = {this.state.icons}
+						userID = {this.state.userID}
+						handle_budget = {this.handle_budget}
+						/> : <Home {...props} 
 						username = {this.state.username}
 						logged_in = {this.state.logged_in}
-						/>} exact >
-							{this.state.redirect && <Redirect to ='/budgets'/>}
-					</Route>
+						
+						display_form={this.display_form}
+						handle_logout={this.handle_logout}
+						handle_toggle={this.handle_toggle}
+						username = {this.state.username}
+						/>)} exact />
+							{/* {this.state.redirect && <Redirect to ='/budgets'/>}
+					</Route> */}
 					
 					<Route path="/budgets" render={(props) => <Budgets {...props} 
 						colorScheme = {this.state.colorScheme}

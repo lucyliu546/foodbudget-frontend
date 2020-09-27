@@ -37,22 +37,24 @@ class SignupForm extends React.Component {
         </Modal.Header>
         <Modal.Body>
           <form onSubmit={e => this.props.handle_signup(e, this.state)}>
-            <h4>Sign Up</h4>
-            <label htmlFor="username">Username</label>
+            
+            <label htmlFor="username" style={{display:'block'}}>Username</label>
             <input
+              style={{display:'block'}}
               type="text"
               name="username"
               value={this.state.username}
               onChange={this.handle_change}
             />
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password" style={{display:'block'}}>Password</label>
             <input
+              style={{display:'block'}}
               type="password"
               name="password"
               value={this.state.password}
               onChange={this.handle_change}
             />
-            <input type="submit" />
+            <input type="submit" style={{marginTop: '2%'}}/>
           </form>
         </Modal.Body>
       </Modal>
